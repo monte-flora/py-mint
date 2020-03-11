@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+
 from PermutationImportance.permutation_importance import sklearn_permutation_importance
 from sklearn.metrics import roc_auc_score, roc_curve, average_precision_score
 from treeinterpreter import treeinterpreter as ti
@@ -30,8 +31,13 @@ class ModelClarify():
         self._examples = examples_in
         self._targets  = targets_in
 
+        # make sure data is the form of a pandas dataframe regardless of input type
         if isinstance(self._examples, np.ndarray): 
-            self._feature_names  = feature_names
+            if (feature_names is None): 
+                raise Exception('Feature names must be specified.')    
+            else:
+                self._feature_names  = feature_names
+                self._examples = pd.DataFrame(data=examples_in, columns=feature_names)
         else:
             self._feature_names  = examples_in.columns.to_list()
 
@@ -51,8 +57,6 @@ class ModelClarify():
             num_indices : Integer representing the number of indices (examples) to return.
                           Default is 10
         '''
-        
-        if isinstance(self._examples, pd.DataFrame): examples_cp = self._examples.to_numpy()
 
         #get indices for each binary class
         positive_idx = np.where(self._targets > 0)
@@ -61,10 +65,10 @@ class ModelClarify():
         #get targets for each binary class
         positive_class = self._targets[positive_idx[0]]
         negative_class = self._targets[negative_idx[0]]    
-    
+ 
         #compute forecast probabilities for each binary class
-        forecast_probabilities_on_pos_class = self._model.predict_proba(examples_cp[positive_idx[0], :])[:,1]
-        forecast_probabilities_on_neg_class = self._model.predict_proba(examples_cp[negative_idx[0], :])[:,1]
+        forecast_probabilities_on_pos_class = self._model.predict_proba(self._examples.loc[positive_idx[0], :])[:,1]
+        forecast_probabilities_on_neg_class = self._model.predict_proba(self._examples.loc[negative_idx[0], :])[:,1]        
     
         #compute the absolute difference
         diff_from_pos = abs(positive_class - forecast_probabilities_on_pos_class)
@@ -160,7 +164,7 @@ class ModelClarify():
         #number of examples
         n_examples = self._examples.shape[0]
 
-        print( f'Interpreting {n_examples} examples...')
+        #run through the tree interpreter
         prediction, bias, contributions = ti.predict( self._model, self._examples)
 
         forecast_probabilities = self._model.predict_proba(self._examples)[:,1]*100.
@@ -211,8 +215,6 @@ class ModelClarify():
         if (feature not in self._feature_names): 
             raise Exception(f'Feature {feature} is not a valid feature')
 
-        print("Computing 1-D partial dependence...")
-
         # get data in numpy format
         column_of_data = self._examples[feature].to_numpy()
 
@@ -230,7 +232,7 @@ class ModelClarify():
             copy_df.loc[:,feature] = value
 
             if (self._classification is True): 
-                predictions = self._model.predict_proba( copy_df)[:,1]
+                predictions = 100.0*self._model.predict_proba( copy_df)[:,1]
             else:
                 predictions = self._model.predict( copy_df)
             
@@ -238,7 +240,7 @@ class ModelClarify():
 
         return pdp_values, variable_range
 
-    def compute_2d_partial_dependence(self, features, **kwargs):
+    def compute_2d_partial_dependence(self, features=(None,None), **kwargs):
 
         '''
         Calculate the partial dependence.
@@ -262,11 +264,11 @@ class ModelClarify():
         if (len(features) < 2): raise Exception(f'tuple of size {len(features)} is less than 2')
 
         # make sure both features are valid...
-        if (feature[0] is None or feature[1] is None): 
+        if (features[0] is None or features[1] is None): 
             raise Exception('One or more features is of type None.')
 
         #check to make sure feature is valid
-        if (feature[0] not in self._feature_names or feature[1] not in self._feature_names): 
+        if (features[0] not in self._feature_names or features[1] not in self._feature_names): 
             raise Exception(f'Feature {feature} is not a valid feature')
 
 
@@ -291,7 +293,7 @@ class ModelClarify():
                 copy_df.loc[features[1]] = value2
 
                 if (self._classification is True): 
-                    predictions = self._model.predict_proba( copy_df)[:,1]
+                    predictions = 100.0*self._model.predict_proba( copy_df)[:,1]
                 else:
                     predictions = self._model.predict( copy_df)
 
@@ -313,7 +315,10 @@ class ModelClarify():
         """
         
         #TODO: incorporate the monte carlo aspect into these routines in a clean way...
-
+        
+        # number of bins for quantiles...may want to add to function call
+        nbins = 15
+        
         # make sure feature is set
         if (feature is None): raise Exception('Specify a feature.')
 
@@ -321,44 +326,52 @@ class ModelClarify():
         if isinstance(quantiles, list): quantiles = np.array(quantiles)
 
         if (quantiles is None):
-            quantiles = np.linspace(np.percentile(self._examples,10), 
-                                    np.percentile(self._examples,90), num = 20)
-
+            # Find the ranges to calculate the local effects over
+            # Since the local effect is a deriative, it best to keep 
+            # the bins equally spaced. 
+            percentiles = np.percentile(self._examples[feature].to_numpy(), [5,95])
+            quantiles   = np.linspace(percentiles[0], percentiles[1], num=nbins)
+        
         # define ALE function
-        ALE = np.zeros(len(quantiles) - 1)
+        ale = np.zeros(len(quantiles) - 1)
 
         # loop over all ranges
         for i in range(1, len(quantiles)):
     
             # get subset of data
-            subset = self._examples[(quantiles[i - 1] <= self._examples[feature]) & 
+            subset = self._examples[ (self._examples[feature]>= quantiles[i - 1]) & 
                                     (self._examples[feature] < quantiles[i])]
 
             # Without any observation, local effect on splitted area is null
             if len(subset) != 0:
-                z_low = subset.copy()
-                z_up  = subset.copy()
-
+                lower_bound = subset.copy()
+                upper_bound = subset.copy()
+                
                 # The main ALE idea that compute prediction difference between same data except feature's one
-                z_low[feature] = quantiles[i - 1]
-                z_up[feature]  = quantiles[i]
-    
-                if (self._classification is True):
-                    ALE[i - 1] += (self._model.predict_proba(z_up)[:,1] - 
-                                   self._model.predict_proba(z_low)[:,1]).sum() / subset.shape[0]
+                lower_bound[feature] = quantiles[i - 1]
+                upper_bound[feature]  = quantiles[i]
+            
+                # The main ALE idea that compute prediction difference between same data except feature's one
+                lower_bound[feature] = quantiles[i - 1]
+                upper_bound[feature]  = quantiles[i]
+            
+                if self._classification:
+                    effect = 100.*(self._model.predict_proba(upper_bound)[:,1] - self._model.predict_proba(lower_bound)[:,1])
                 else:
-                    ALE[i - 1] += (self._model.predict(z_up) - 
-                                   self._model.predict(z_low)).sum() / subset.shape[0]
-          
+                    effect = self._model.predict(upper_bound) - self._model.predict(lower_bound)
+
+            ale[i-1] = np.mean(effect)  
+        
         # The accumulated effect      
-        ALE = ALE.cumsum()  
+        ale = ale.cumsum()
+        mean_ale = ale.mean()
 
         # Now we have to center ALE function in order to obtain null expectation for ALE function
-        ALE -= ALE.mean()
+        ale -= mean_ale
 
-        return ALE, quantiles
+        return ale, mean_ale, quantiles
 
-    def calculate_second_order_ALE(self, feature=None, quantiles=None):
+    def calculate_second_order_ALE(self, features=(None,None), quantiles=None):
 
         """
             Computes second-order ALE function on two continuous features data.
@@ -369,25 +382,40 @@ class ModelClarify():
                 The name of the feature to consider.
             quantiles : array
                 Quantiles of feature.
+
+            Need to double check quantiles...
         """
 
-        # make sure feature is set
-        if (feature is None): raise Exception('Specify a feature.')
+        nbins = 15
+        # make sure there are two features...
+        if (len(features) > 2): raise Exception(f'tuple of size {len(features)} is greater than 2')
+        if (len(features) < 2): raise Exception(f'tuple of size {len(features)} is less than 2')
+
+        # make sure both features are valid...
+        if (features[0] is None or features[1] is None): 
+            raise Exception('One or more features is of type None.')
+
+        #check to make sure feature is valid
+        if (features[0] not in self._feature_names or features[1] not in self._feature_names): 
+            raise Exception("One or more features is not valid.")
 
         # convert quantiles to array if list
         if isinstance(quantiles, list): quantiles = np.array(quantiles)
 
         if (quantiles is None):
-            quantiles = np.linspace(np.percentile(self._examples,10), 
-                                    np.percentile(self._examples,90), num = 20)
-
+            
+            percentiles = [np.percentile(self._examples[f], [5,95]) for f in features]
+            quantiles   = np.array([np.linspace(f[0], f[1], num=nbins) for f in percentiles])
+        
+        print(quantiles)
+        
         # define ALE function
-        ALE = np.zeros((quantiles.shape[1], quantiles.shape[1]))
+        ale = np.zeros((quantiles.shape[1], quantiles.shape[1]))
 
         for i in range(1, len(quantiles[0])):
             for j in range(1, len(quantiles[1])):
                 # Select subset of training data that falls within subset
-                subset = train_set[(quantiles[0,i-1] <= self._examples[features[0]]) &
+                subset = self._examples[(quantiles[0,i-1] <= self._examples[features[0]]) &
                                    (quantiles[0,i] > self._examples[features[0]]) &
                                    (quantiles[1,j-1] <= self._examples[features[1]]) &
                                    (quantiles[1,j] > self._examples[features[1]])]
@@ -410,27 +438,30 @@ class ModelClarify():
                     z_up[1][features[1]] = quantiles[1, j]
 
                     if (self._classification is True):
-                        ALE[i,j] += (self._model.predict_proba(z_up[1])[:,1] - 
+                        effect = 100.0*(self._model.predict_proba(z_up[1])[:,1] - 
                                      self._model.predict_proba(z_up[0])[:,1] - 
                                     (self._model.predict_proba(z_low[1])[:,1] -
-                                     self._model.predict_proba(z_low[0])[:,1])).sum() / subset.shape[0]
+                                     self._model.predict_proba(z_low[0])[:,1]))
 
                     else:
-                        ALE[i,j] += (self._model.predict(z_up[1]) - 
+                        effect = (self._model.predict(z_up[1]) - 
                                      self._model.predict(z_up[0]) - 
                                     (self._model.predict(z_low[1]) -
-                                     self._model.predict(z_low[0]))).sum() / subset.shape[0]
+                                     self._model.predict(z_low[0])))
 
-        # The accumulated effect
-        ALE = np.cumsum(ALE, axis=0)
+                ale[i,j] = np.mean(effect)
+                
+        # The accumulated effect      
+        ale = np.cumsum(ale, axis=0)
+        mean_ale = ale.mean()
 
         # Now we have to center ALE function in order to obtain null expectation for ALE function
-        ALE -= ALE.mean()  
+        ale -= mean_ale
 
-        return ALE, quantiles
+        return ale, mean_ale, quantiles
 
     def calculate_first_order_ALE_categorical(self, feature=None, 
-                features_classes=None):
+                feature_classes=None):
 
         """
             Computes first-order ALE function on single categorical feature data.
@@ -448,38 +479,36 @@ class ModelClarify():
 
         # get range of values of feature class if not set
         if (feature_classes is None): 
-            features_classes = self._examples[feature].unique().to_list()
+            feature_classes = self._examples[feature].unique().to_list()
 
-        num_cat = len(features_classes)
-        ALE = np.zeros(num_cat)  # Final ALE function
+        num_cat = len(feature_classes)
+        ale = np.zeros(num_cat)  # Final ALE function
 
         for i in range(num_cat):
-            subset = self._examples[self._examples[feature] == features_classes[i]]
+            subset = self._examples[self._examples[feature] == feature_classes[i]]
 
             # Without any observation, local effect on splitted area is null
             if len(subset) != 0:
                 z_low = subset.copy()
                 z_up = subset.copy()
 
-                # The main ALE idea that compute prediction difference between same data except feature's one
-                z_low[feature] = quantiles[i - 1]
-                z_up[feature] = quantiles[i]
-
                 if (self._classification is True):
-                    ALE[i] += (self._model.predict_proba(z_up)[:,1] - 
-                                   self._model.predict_proba(z_low)[:,1]).sum() / subset.shape[0]
+                    effect = 100.0*(self._model.predict_proba(z_up)[:,1] - 
+                                   self._model.predict_proba(z_low)[:,1])
                 else:
-                    ALE[i] += (self._model.predict(z_up) - 
-                                   self._model.predict(z_low)).sum() / subset.shape[0]
+                    effect = (self._model.predict(z_up) - 
+                                   self._model.predict(z_low))
 
-
-        # The accumulated effect
-        ALE = np.cumsum(ALE, axis=0)
+            ale[i] = np.mean(effect)
+            
+        # The accumulated effect      
+        ale = np.cumsum(ale, axis=0)
+        mean_ale = ale.mean()
 
         # Now we have to center ALE function in order to obtain null expectation for ALE function
-        ALE -= ALE.mean()  
+        ale -= mean_ale
 
-        return ALE
+        return ale, mean_ale
 
     def permutation_importance(
                                self, 
@@ -506,6 +535,7 @@ class ModelClarify():
             nbootstrap: integer
                 number of bootstrapp resamples 
         """
+        
         if evaluation_fn.lower() == 'auc':
             evaluation_fn = roc_auc_score
             scoring_strategy = 'argmin_of_mean'
