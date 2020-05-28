@@ -2,9 +2,10 @@ import numpy as np
 import pandas as pd
 import concurrent.futures
 
-from utils import compute_bootstrap_samples
+from .utils import compute_bootstrap_samples
 
-class PartialDependence:
+
+class PartialDependence(object):
 
     """
     Class for computing partial dependence.
@@ -22,28 +23,20 @@ class PartialDependence:
             nd.numpy array. Make sure it's a list
     """
 
-    def __init__(self, model=None, examples=None, targets=None, classification=True,
-            feature_names=None):
+    def __init__(self, model=None, examples=None, classification=True,
+                 feature_names=None):
 
         # if model is of type list or single objection, convert to dictionary
         if not isinstance(model, dict):
             if isinstance(model, list):
-                self._models = {type(m).__name__ : m for m in model}
+                self._models = {type(m).__name__: m for m in model}
             else:
-                self._models = {type(model).__name__ : model}
+                self._models = {type(model).__name__: model}
         # user provided a dict
         else:
             self._models = model
 
         self._examples = examples
-
-        # check that targets are assigned correctly
-        if isinstance(targets, list):
-            self._targets = np.array(targets)
-        elif isinstance(targets, np.ndarray):
-            self._targets = targets
-        else:
-            raise TypeError('Target variable must be numpy array.')
 
         # make sure data is the form of a pandas dataframe regardless of input type
         if isinstance(self._examples, np.ndarray):
@@ -51,26 +44,24 @@ class PartialDependence:
                 raise Exception('Feature names must be specified if using NumPy array.')
             else:
                 self._feature_names = feature_names
-                self._examples      = pd.DataFrame(data=examples, columns=feature_names)
+                self._examples = pd.DataFrame(data=examples, columns=feature_names)
         else:
-            self._feature_names  = examples.columns.to_list()
+            self._feature_names = examples.columns.to_list()
 
         self._classification = classification
-        self._pdp_values     = None
-        self._x1vals         = None
-        self._x2vals         = None
-        self._hist_vals      = None
+        self._pdp_values = None
+        self._x1vals = None
+        self._x2vals = None
+        self._hist_vals = None
 
         # dictionary containing information for all each feature and model
         self._dict_out = {}
-
 
     def get_final_dict(self):
 
         return self._dict_out
 
     def run_pd(self, features=None, njobs=1, subsample=1.0, nbootstrap=1, **kwargs):
-
         """
             Runs the partial dependence calculation and returns a dictionary with all
             necessary inputs for plotting.
@@ -82,7 +73,7 @@ class PartialDependence:
                         bootstrapping).
         """
 
-        self.subsample  = subsample
+        self.subsample = subsample
         self.nbootstrap = nbootstrap
 
         # get number of features we are processing
@@ -94,18 +85,18 @@ class PartialDependence:
             with concurrent.futures.ProcessPoolExecutor(max_workers=njobs) as executor:
                 tdict = executor.map(self._parallelize_2d, features)
 
-            #convert list of dicts to dict
+            # convert list of dicts to dict
             for elem in tdict:
                 self._dict_out.update(elem)
 
         # else, single order calculations
         else:
 
-            #parallelize routine... calculate partial dependence for each feature.
+            # parallelize routine... calculate partial dependence for each feature.
             with concurrent.futures.ProcessPoolExecutor(max_workers=njobs) as executor:
                 tdict = executor.map(self._parallelize_1d, features)
 
-            #convert list of dicts to dict
+            # convert list of dicts to dict
             for elem in tdict:
                 self._dict_out.update(elem)
 
@@ -123,15 +114,15 @@ class PartialDependence:
             temp_dict[feature][model_name] = {}
 
             self.compute_1d_partial_dependence(feature=feature,
-                                                model=model,
-                                                subsample =self.subsample,
-                                                nbootstrap=self.nbootstrap)
+                                               model=model,
+                                               subsample=self.subsample,
+                                               nbootstrap=self.nbootstrap)
 
-            #print(self._pdp_values)
+            # print(self._pdp_values)
 
             # add to a dict
-            temp_dict[feature][model_name]['values']    = self._pdp_values
-            temp_dict[feature][model_name]['xdata1']    = self._x1vals
+            temp_dict[feature][model_name]['values'] = self._pdp_values
+            temp_dict[feature][model_name]['xdata1'] = self._x1vals
             temp_dict[feature][model_name]['hist_data'] = self._hist_vals
 
         return temp_dict
@@ -150,11 +141,11 @@ class PartialDependence:
             temp_dict[feature][model_name] = {}
 
             self.compute_2d_partial_dependence(feature=feature,
-                                                model=model,
-                                                subsample =self.subsample,
-                                                nbootstrap=self.nbootstrap)
+                                               model=model,
+                                               subsample=self.subsample,
+                                               nbootstrap=self.nbootstrap)
 
-            #print(self._pdp_values)
+            # print(self._pdp_values)
 
             # add to a dict
             temp_dict[feature][model_name]['values'] = self._pdp_values
@@ -164,7 +155,6 @@ class PartialDependence:
         return temp_dict
 
     def compute_1d_partial_dependence(self, feature=None, **kwargs):
-
         """
         Calculate the partial dependence.
         # Friedman, J., 2001: Greedy function approximation: a gradient boosting machine.Annals of Statistics,29 (5), 1189–1232.
@@ -181,8 +171,8 @@ class PartialDependence:
             feature : name of feature to compute PD for (string)
         """
 
-        model      = kwargs.get('model', "")
-        subsample  = kwargs.get('subsample', 1.0)
+        model = kwargs.get('model', "")
+        subsample = kwargs.get('subsample', 1.0)
         nbootstrap = kwargs.get('nbootstrap', 1)
 
         # check to make sure a feature is present...
@@ -207,8 +197,8 @@ class PartialDependence:
         # get the bootstrap samples
         if nbootstrap > 1:
             bootstrap_examples = compute_bootstrap_samples(self._examples,
-                                        subsample=subsample,
-                                        nbootstrap=nbootstrap)
+                                                           subsample=subsample,
+                                                           nbootstrap=nbootstrap)
         else:
             bootstrap_examples = [self._examples.index.to_list()]
 
@@ -231,11 +221,9 @@ class PartialDependence:
                 else:
                     predictions = model.predict(examples)
 
-                self._pdp_values[k,i] = np.mean(predictions)
-
+                self._pdp_values[k, i] = np.mean(predictions)
 
     def compute_2d_partial_dependence(self, feature=None, **kwargs):
-
         """
         Calculate the partial dependence between two features.
 
@@ -244,7 +232,7 @@ class PartialDependence:
 
         """
 
-        subsample  = kwargs.get('subsample', 1.0)
+        subsample = kwargs.get('subsample', 1.0)
         nbootstrap = kwargs.get('nbootstrap', 1)
 
         # make sure there are two features...
@@ -269,14 +257,14 @@ class PartialDependence:
         # get the bootstrap samples
         if nbootstrap > 1:
             bootstrap_examples = compute_bootstrap_samples(self._examples,
-                                        subsample=subsample,
-                                        nbootstrap=nbootstrap)
+                                                           subsample=subsample,
+                                                           nbootstrap=nbootstrap)
         else:
             bootstrap_examples = [self._examples.index.to_list()]
 
         # define 2-D grid
         self._pdp_values = np.full((nbootstrap, self._x1vals.shape[0],
-                                                self._x2vals.shape[0]), np.nan)
+                                    self._x2vals.shape[0]), np.nan)
 
         # for each bootstrap set
         for k, idx in enumerate(bootstrap_examples):
@@ -296,4 +284,4 @@ class PartialDependence:
                     else:
                         predictions = self._model.predict(examples)
 
-                    self._pdp_values[k,i,j] = np.mean(predictions)
+                    self._pdp_values[k, i, j] = np.mean(predictions)

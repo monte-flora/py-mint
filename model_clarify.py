@@ -1,12 +1,12 @@
 import numpy as np
 import pandas as pd
 
-from partial_dependence import PartialDependence
-from accumulated_local_effects import AccumulatedLocalEffects
-from tree_interpreter import TreeInterpreter
-from interpretability_plotting import InterpretabilityPlotting
+from .partial_dependence import PartialDependence
+from .accumulated_local_effects import AccumulatedLocalEffects
+from .tree_interpreter import TreeInterpreter
+from .interpretability_plotting import InterpretabilityPlotting
 
-from PermutationImportance.permutation_importance import sklearn_permutation_importance
+from .PermutationImportance.permutation_importance import sklearn_permutation_importance
 from sklearn.metrics import roc_auc_score, roc_curve, average_precision_score
 
 list_of_acceptable_tree_models = [
@@ -37,14 +37,14 @@ class ModelClarify:
     """
 
     def __init__(self, model=None, examples=None, targets=None, classification=True,
-            feature_names=None):
+                 feature_names=None):
 
         # if model is of type list or single objection, convert to dictionary
         if not isinstance(model, dict):
             if isinstance(model, list):
-                self._models = {type(m).__name__ : m for m in model}
+                self._models = {type(m).__name__: m for m in model}
             else:
-                self._models = {type(model).__name__ : model}
+                self._models = {type(model).__name__: model}
         # user provided a dict
         else:
             self._models = model
@@ -65,21 +65,21 @@ class ModelClarify:
                 raise Exception('Feature names must be specified if using NumPy array.')
             else:
                 self._feature_names = feature_names
-                self._examples      = pd.DataFrame(data=examples, columns=feature_names)
+                self._examples = pd.DataFrame(data=examples, columns=feature_names)
         else:
-            self._feature_names  = examples.columns.to_list()
+            self._feature_names = examples.columns.to_list()
 
         self._classification = classification
 
         # initialize a PD object
         self._pdp_object = PartialDependence(model=model, examples=examples,
-                                targets=targets, classification=classification,
-                                feature_names=feature_names)
+                                             classification=classification,
+                                             feature_names=feature_names)
 
         # initialize a ALE object
         self._ale_object = AccumulatedLocalEffects(model=model, examples=examples,
-                                targets=targets, classification=classification,
-                                feature_names=feature_names)
+                                                   classification=classification,
+                                                   feature_names=feature_names)
 
         # initialize a plotting object
         self._clarify_plot_obj = InterpretabilityPlotting()
@@ -148,7 +148,6 @@ class ModelClarify:
 
         return self.ale_dict
 
-
     def plot_ale(self, **kwargs):
         """
             Plots the ALE. If the first instance is a tuple, then a 2-D plot is
@@ -157,11 +156,10 @@ class ModelClarify:
 
         # plot the PD data. Use first feature key to see if 1D (str) or 2D (tuple)
         if isinstance(list(self.ale_dict.keys())[0], tuple):
-            #return self._clarify_plot_obj.plot_2d_ale(self.pd_dict, **kwargs)
+            # return self._clarify_plot_obj.plot_2d_ale(self.pd_dict, **kwargs)
             return print("No 2D ALE plotting functionality yet... sorry!")
         else:
             return self._clarify_plot_obj.plot_1d_curve(self.ale_dict, **kwargs)
-
 
     def get_indices_based_on_performance(self, model, n_examples=None):
         """
@@ -179,43 +177,43 @@ class ModelClarify:
             listed above
         """
 
-        #default is to use all examples
+        # default is to use all examples
         if (n_examples is None):
             n_examples = self._examples.shape[0]
 
-        #make sure user didn't goof the input
+        # make sure user didn't goof the input
         if (n_examples <= 0):
             print("n_examples less than or equals 0. Defaulting back to all")
             n_examples = self._examples.shape[0]
 
-        #get indices for each binary class
-        positive_idx = np.where(self._targets > 0)[0]   #77
-        negative_idx = np.where(self._targets < 1)[0]   #173
+        # get indices for each binary class
+        positive_idx = np.where(self._targets > 0)[0]  # 77
+        negative_idx = np.where(self._targets < 1)[0]  # 173
 
-        #get targets for each binary class
+        # get targets for each binary class
         positive_class = self._targets[positive_idx]
         negative_class = self._targets[negative_idx]
 
-        #compute forecast probabilities for each binary class
-        forecast_probs_pos_class = model.predict_proba(self._examples.iloc[positive_idx])[:,1]
-        forecast_probs_neg_class = model.predict_proba(self._examples.iloc[negative_idx])[:,1]
+        # compute forecast probabilities for each binary class
+        forecast_probs_pos_class = model.predict_proba(self._examples.iloc[positive_idx])[:, 1]
+        forecast_probs_neg_class = model.predict_proba(self._examples.iloc[negative_idx])[:, 1]
 
-        #compute the absolute difference
+        # compute the absolute difference
         diff_from_pos = abs(positive_class - forecast_probs_pos_class)
         diff_from_neg = abs(negative_class - forecast_probs_neg_class)
 
-        #sort based on forecast probabilities (ascending order assumed by argsort)
-        sorted_hits = np.argsort(diff_from_pos) #best hits
-        sorted_miss = np.argsort(diff_from_pos)[::-1] #worst misses
-        sorted_fa   = np.argsort(diff_from_neg)[::-1] #worst false alarms
-        sorted_cn   = np.argsort(diff_from_neg) #best corr negs
+        # sort based on forecast probabilities (ascending order assumed by argsort)
+        sorted_hits = np.argsort(diff_from_pos)  # best hits
+        sorted_miss = np.argsort(diff_from_pos)[::-1]  # worst misses
+        sorted_fa = np.argsort(diff_from_neg)[::-1]  # worst false alarms
+        sorted_cn = np.argsort(diff_from_neg)  # best corr negs
 
         sorted_dict = {
-                        'hits':         positive_idx[sorted_hits[:n_examples]].astype(int),
-                        'misses':       positive_idx[sorted_miss[:n_examples]].astype(int),
-                        'false_alarms': negative_idx[sorted_fa[:n_examples]].astype(int),
-                        'corr_negs':    negative_idx[sorted_cn[:n_examples]].astype(int)
-                      }
+            'hits':         positive_idx[sorted_hits[:n_examples]].astype(int),
+            'misses':       positive_idx[sorted_miss[:n_examples]].astype(int),
+            'false_alarms': negative_idx[sorted_fa[:n_examples]].astype(int),
+            'corr_negs':    negative_idx[sorted_cn[:n_examples]].astype(int)
+        }
 
         return sorted_dict
 
@@ -239,8 +237,8 @@ class ModelClarify:
 
         for key in list(the_dict.keys()):
 
-            df        = the_dict[key]
-            series    = df.mean(axis=0)
+            df = the_dict[key]
+            series = df.mean(axis=0)
             sorted_df = series.reindex(series.abs().sort_values(ascending=False).index)
 
             if (performance_dict is None):
@@ -252,12 +250,12 @@ class ModelClarify:
             for var in list(sorted_df.index):
                 if var == 'Bias':
                     top_vars[var] = {
-                                    'Mean Value': None,
-                                    'Mean Contribution' : series[var]
-                                    }
+                        'Mean Value': None,
+                        'Mean Contribution': series[var]
+                    }
                 else:
                     top_vars[var] = {
-                        "Mean Value": np.mean(self._examples.loc[idxs,var].values),
+                        "Mean Value": np.mean(self._examples.loc[idxs, var].values),
                         "Mean Contribution": series[var],
                     }
 
@@ -266,7 +264,6 @@ class ModelClarify:
         return return_dict
 
     def tree_interpreter(self, model, indices=None):
-
         """
         Method for intrepreting tree based ML models using treeInterpreter.
         ADD REFERENCE HERE SOMEWHERE
@@ -285,7 +282,7 @@ class ModelClarify:
 
         # if indices to use is None, implies use all data
         if (indices is None):
-            indices  = self._examples.index.to_list()
+            indices = self._examples.index.to_list()
             examples = self._examples
         else:
             examples = self._examples.iloc[indices]
@@ -305,7 +302,7 @@ class ModelClarify:
         prediction, bias, contributions = ti.predict()
 
         positive_class_contributions = contributions[:, :, 1]
-        positive_class_bias = bias[0,1]   #bias is all the same values for first index
+        positive_class_bias = bias[0, 1]  # bias is all the same values for first index
 
         tmp_data = []
 
@@ -315,7 +312,7 @@ class ModelClarify:
             key_list = []
             var_list = []
 
-            for c, feature in zip( positive_class_contributions[i, :], self._feature_names):
+            for c, feature in zip(positive_class_contributions[i, :], self._feature_names):
 
                 key_list.append(feature)
                 var_list.append(round(100.0 * c, 2))
@@ -331,7 +328,6 @@ class ModelClarify:
         return contributions_dataframe
 
     def run_tree_interpreter(self, performance_based=False, n_examples=10):
-
         """
         Method for running tree interpreter. This function is called by end user
 
@@ -365,7 +361,8 @@ class ModelClarify:
                 self.ti_dict[model_name] = {}
 
                 # get the dictionary of hits, misses, correct neg, false alarms indices
-                performance_dict = self.get_indices_based_on_performance(model, n_examples=n_examples)
+                performance_dict = self.get_indices_based_on_performance(
+                    model, n_examples=n_examples)
 
                 for key, values in performance_dict.items():
 
@@ -378,7 +375,7 @@ class ModelClarify:
 
                 # average out the contributions and sort based on contribution
                 some_dict = self.avg_and_sort_contributions(self.ti_dict[model_name],
-                                                    performance_dict=performance_dict)
+                                                            performance_dict=performance_dict)
 
                 self.ti_dict[model_name] = some_dict
         else:
@@ -406,14 +403,12 @@ class ModelClarify:
 
         return self.ti_dict
 
-
     def plot_tree_interpreter(self, **kwargs):
 
         return self._clarify_plot_obj.plot_treeinterpret(self.ti_dict, **kwargs)
 
     def permutation_importance(self, n_multipass_vars=5, evaluation_fn="auprc",
-            subsample=1.0, njobs=1, nbootstrap=1):
-
+                               subsample=1.0, njobs=1, nbootstrap=1):
         """
         Performs multipass permutation importance using Eli's code.
 
@@ -451,15 +446,15 @@ class ModelClarify:
             print(f"Processing {model_name}...")
 
             pi_result = sklearn_permutation_importance(
-                model            = model,
-                scoring_data     = (self._examples, targets),
-                evaluation_fn    = evaluation_fn,
-                variable_names   = self._feature_names,
-                scoring_strategy = scoring_strategy,
-                subsample        = subsample,
-                nimportant_vars  = n_multipass_vars,
-                njobs            = njobs,
-                nbootstrap       = self.nbootstrap,
+                model=model,
+                scoring_data=(self._examples, targets),
+                evaluation_fn=evaluation_fn,
+                variable_names=self._feature_names,
+                scoring_strategy=scoring_strategy,
+                subsample=subsample,
+                nimportant_vars=n_multipass_vars,
+                njobs=njobs,
+                nbootstrap=self.nbootstrap,
             )
 
             self.pi_dict[model_name] = pi_result

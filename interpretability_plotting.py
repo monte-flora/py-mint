@@ -1,8 +1,7 @@
-import matplotlib.pyplot as plt
-import numpy as np
+from .utils import combine_like_features
 from matplotlib.ticker import FormatStrFormatter
-
-# import waterfall_chart
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 # Set up the font sizes for matplotlib
@@ -67,28 +66,28 @@ line_colors = ['orangered', 'darkviolet', 'darkslategray', 'darkorange', 'darkgr
 #
 #         return fig, axes
 
+
 class InterpretabilityPlotting:
 
     def create_subplots(self, n_panels, **kwargs):
-
         """
         Create a series of subplots (MxN) based on the
         number of panels and number of columns (optionally)
         """
 
         n_columns = kwargs.get('n_columns', 3)
-        figsize   = kwargs.get('figsize', (6.4,4.8))
-        wspace    = kwargs.get('wspace', 0.4)
-        hspace    = kwargs.get('hspace', 0.3)
-        sharex    = kwargs.get('sharex', False)
-        sharey    = kwargs.get('sharey', False)
+        figsize = kwargs.get('figsize', (6.4, 4.8))
+        wspace = kwargs.get('wspace', 0.4)
+        hspace = kwargs.get('hspace', 0.3)
+        sharex = kwargs.get('sharex', False)
+        sharey = kwargs.get('sharey', False)
 
-        n_rows    = int(n_panels / n_columns)
-        extra_row = 0 if (n_panels % n_columns) ==0 else 1
+        n_rows = int(n_panels / n_columns)
+        extra_row = 0 if (n_panels % n_columns) == 0 else 1
 
         fig, axes = plt.subplots(n_rows+extra_row, n_columns, sharex=sharex,
-                                    sharey=sharey, figsize=figsize)
-        plt.subplots_adjust(wspace = wspace, hspace = hspace)
+                                 sharey=sharey, figsize=figsize)
+        plt.subplots_adjust(wspace=wspace, hspace=hspace)
 
         n_axes_to_delete = len(axes.flat) - n_panels
 
@@ -99,7 +98,7 @@ class InterpretabilityPlotting:
         return fig, axes
 
     def set_major_axis_labels(self, fig, xlabel=None, ylabel_left=None,
-                                ylabel_right=None, **kwargs):
+                              ylabel_right=None, **kwargs):
         """
         Generate a single X- and Y-axis labels for
         a series of subplot panels
@@ -119,7 +118,7 @@ class InterpretabilityPlotting:
         ax.set_ylabel(ylabel_left, fontsize=fontsize, labelpad=labelpad)
 
         if ylabel_right is not None:
-            ax_right = fig.add_subplot(1,1,1, sharex=ax, frameon=False)
+            ax_right = fig.add_subplot(1, 1, 1, sharex=ax, frameon=False)
             plt.tick_params(labelcolor='none', top=False, bottom=False, left=False, right=False)
 
             ax_right.yaxis.set_label_position("right")
@@ -127,11 +126,11 @@ class InterpretabilityPlotting:
 
     def add_histogram_axis(self, ax, data, **kwargs):
 
-        color     = kwargs.get('color', 'lightblue')
+        color = kwargs.get('color', 'lightblue')
         edgecolor = kwargs.get('color', 'white')
 
-        cnt, bins, patches = ax.hist( data, bins='auto', alpha=0.3, color=color,
-                                        density=True, edgecolor=edgecolor)
+        cnt, bins, patches = ax.hist(data, bins='auto', alpha=0.3, color=color,
+                                     density=True, edgecolor=edgecolor)
 
         area = np.dot(cnt, np.diff(bins))
         hist_ax = ax.twinx()
@@ -144,25 +143,23 @@ class InterpretabilityPlotting:
         return hist_ax
 
     def line_plot(self, ax, xdata, ydata, **kwargs):
-
         """
         Plots a curve of data
         """
 
         linewidth = kwargs.get('linewidth', 2.0)
         linestyle = kwargs.get('linestyle', '-')
-        color     = kwargs.get('color', 'blue')
+        color = kwargs.get('color', 'blue')
 
         ax.plot(xdata, ydata, color=color, linewidth=linewidth, linestyle=linestyle)
 
     def confidence_interval_plot(self, ax, xdata, ydata, **kwargs):
-
         """
         Plot Confidence Intervals
         """
 
         facecolor = kwargs.get('facecolor', 'r')
-        color     = kwargs.get('color', 'blue')
+        color = kwargs.get('color', 'blue')
 
         # get mean curve
         mean_ydata = np.mean(ydata, axis=0)
@@ -177,30 +174,29 @@ class InterpretabilityPlotting:
         ax.fill_between(xdata, lower_bound, upper_bound, facecolor=facecolor, alpha=0.4)
 
     def plot_1d_curve(self, feature_dict, **kwargs):
-
         """
         Generic function for 1-D ALE and PD
         """
 
-        ci_plot   = kwargs.get('ci_plot', False)
-        hspace    = kwargs.get('hspace', 0.5)
-        color     = kwargs.get('color', 'blue')
+        ci_plot = kwargs.get('ci_plot', False)
+        hspace = kwargs.get('hspace', 0.5)
+        color = kwargs.get('color', 'blue')
         facecolor = kwargs.get('facecolor', 'gray')
-        ylim      = kwargs.get('ylim', [-10,60])
+        ylim = kwargs.get('ylim', [-10, 60])
 
         # get the number of panels which will be length of feature dictionary
         n_panels = len(feature_dict.keys())
 
         # create subplots, one for each feature
-        fig, axes = self.create_subplots(n_panels=n_panels, hspace=hspace, figsize=(8,6))
+        fig, axes = self.create_subplots(n_panels=n_panels, hspace=hspace, figsize=(8, 6))
 
         # loop over each feature and add relevant plotting stuff
         for ax, feature in zip(axes.flat, feature_dict.keys()):
 
             for i, model in enumerate(feature_dict[feature].keys()):
 
-                xdata     = feature_dict[feature][model]['xdata1']
-                ydata     = feature_dict[feature][model]['values']
+                xdata = feature_dict[feature][model]['xdata1']
+                ydata = feature_dict[feature][model]['values']
                 hist_data = feature_dict[feature][model]['hist_data']
 
                 # add histogram
@@ -209,48 +205,47 @@ class InterpretabilityPlotting:
                 # depending on number of bootstrap examples, do CI plot or just mean
                 if (ci_plot is True and ydata.shape[0] > 1):
                     self.confidence_interval_plot(hist_ax, xdata, ydata,
-                        color=color[i], facecolor=facecolor[i])
+                                                  color=color[i], facecolor=facecolor[i])
                 else:
-                    self.line_plot(hist_ax, xdata, ydata[0,:],
-                        color=color[i])
+                    self.line_plot(hist_ax, xdata, ydata[0, :],
+                                   color=color[i])
 
                 ax.set_xlabel(feature, fontsize=10)
                 hist_ax.axhline(y=0.0, color="k", alpha=0.8)
                 hist_ax.set_ylim(ylim)
 
         self.set_major_axis_labels(fig, xlabel=None, ylabel_left='Relative Frequency',
-                                ylabel_right='Mean Probability (%)', **kwargs)
+                                   ylabel_right='Mean Probability (%)', **kwargs)
 
         return fig, axes
 
     def plot_2d_field(self, feature_dict, **kwargs):
-
         """
         Generic function for 2-D PDP
         """
 
         hspace = kwargs.get('hspace', 0.5)
-        ylim   = kwargs.get('ylim', [25,50])
-        cmap   = kwargs.get('cmap', 'bwr')
+        ylim = kwargs.get('ylim', [25, 50])
+        cmap = kwargs.get('cmap', 'bwr')
         levels = 20
 
         # get the number of panels which will be length of feature dictionary
         n_panels = len(feature_dict.keys())
 
         # create subplots, one for each feature
-        fig, axes = self.create_subplots(n_panels=n_panels, hspace=hspace, figsize=(8,6))
+        fig, axes = self.create_subplots(n_panels=n_panels, hspace=hspace, figsize=(8, 6))
 
         # loop over each feature and add relevant plotting stuff
         for ax, feature in zip(axes.flat, feature_dict.keys()):
 
-            xdata1     = feature_dict[feature]['xdata1']
-            xdata2     = feature_dict[feature]['xdata2']
-            ydata      = feature_dict[feature]['pd_values']
+            xdata1 = feature_dict[feature]['xdata1']
+            xdata2 = feature_dict[feature]['xdata2']
+            ydata = feature_dict[feature]['pd_values']
 
             # can only do a contour plot with 2-d data
             x, y = np.meshgrid(xdata1, xdata2)
 
-            cf = ax.contourf(x, y, ydata[0,:,:], cmap=cmap, levels=levels, alpha=0.75)
+            cf = ax.contourf(x, y, ydata[0, :, :], cmap=cmap, levels=levels, alpha=0.75)
 
             fig.colorbar(cf, ax)
 
@@ -260,82 +255,126 @@ class InterpretabilityPlotting:
             ax.set_ylim(ylim)
 
         self.set_major_axis_labels(fig, xlabel=None, ylabel_left='Relative Frequency',
-                                ylabel_right='Mean Probability (%)', **kwargs)
+                                   ylabel_right='Mean Probability (%)', **kwargs)
 
         return fig, axes
 
-    def ti_plot(self, dict_to_use, ax=None, threshold=1.0):
+    def autolabel(self, rects, ax):
+        """
+        Attach a text label to the right/left of each bar
+        """
+        for rect in rects:
+            width = rect.get_width()
+            ax.text(rect.get_x() + rect.get_height()/2., 1.05*width,
+                    '%d' % int(width), ha='center', va='bottom')
 
-        if ax is None:
-            fig, ax = plt.subplots()
-
-        # list storing contribution value
-        contrib  = []
-        # list storing variable names
+    def _ti_plot(self, dict_to_use, key, ax=None,
+                 to_only_varname=None,
+                 n_vars=10,
+                 other_label='Other Predictors'):
+        """
+        Plot the tree interpreter.
+        """
+        contrib = []
         varnames = []
-        # list stroing color of bar for each variable name
-        colors_to_plot = []
-        # list to store below threshold features
-        others = []
 
         # return nothing if dictionary is empty
-        if len(dict_to_use) == 0: return
+        if len(dict_to_use) == 0:
+            return
 
         for var in list(dict_to_use.keys()):
+            try:
+                contrib.append(dict_to_use[var]["Mean Contribution"])
+            except:
+                contrib.append(dict_to_use[var])
 
-            # skip bias
-            if var == 'Bias':
-                bias_term = dict_to_use[var]["Mean Contribution"]
-                continue
-
-            # if contribution is small, skip
-            if (abs(dict_to_use[var]["Mean Contribution"]) < threshold):
-                others.append(dict_to_use[var]["Mean Contribution"])
-                continue
-
-            contrib.append(dict_to_use[var]["Mean Contribution"])
-
-            if (dict_to_use[var]["Mean Contribution"] >= threshold):
-                colors_to_plot.append('lightgreen')
+            if to_only_varname is None:
+                varnames.append(var)
             else:
-                colors_to_plot.append('red')
+                varnames.append(to_only_varname(var))
 
-            varnames.append(var.lower().replace('_', ' '))
+        final_pred = np.sum(contrib)
 
-        # add the "not so important" other features at the end
-        varnames.append('others')
-        contrib.append(sum(others))
+        if to_only_varname is not None:
+            contrib, varnames = combine_like_features(contrib, varnames)
 
-        if (sum(others) > 0.0): colors_to_plot.append('lightgreen')
-        else: colors_to_plot.append('red')
+        bias_index = varnames.index('Bias')
+        bias = contrib[bias_index]
 
-        # compute total contribution by summing
-        final_contribution = '{0:.2f}'.format(sum(contrib)+bias_term)
+        # Remove the bias term (neccesary for cases where
+        # the data resampled to be balanced; the bias is 50% in that cases
+        # and will much higher than separate contributions of the other predictors)
+        varnames.pop(bias_index)
+        contrib.pop(bias_index)
 
-        # make horizontal bar plot
-        bh = ax.barh(np.arange(len(contrib)),
-             contrib, linewidth=1, edgecolor='black', color=colors_to_plot)
+        varnames = np.array(varnames)
+        contrib = np.array(contrib)
 
-        # Put the variable names _into_ the plot
-        for bar, i in zip(bh, range(len(varnames))):
-            ax.text(0.1, i, varnames[i],
-                 va="center", ha="left", size=font_sizes['teensie'])
+        varnames = np.append(varnames[:n_vars], other_label)
+        contrib = np.append(contrib[:n_vars], sum(contrib[n_vars:]))
 
-        ax.set_yticks([])
-        vmax = np.ceil(round(max(contrib)/10.0))*10.0
-        vmin = min(contrib) - (min(contrib) % 10)
-#        ax.set_xticks(np.linspace(vmin, vmax, (vmax-vmin)/10+1))
+        sorted_idx = np.argsort(contrib)[::-1]
+        contrib = contrib[sorted_idx]
+        varnames = varnames[sorted_idx]
 
-        # ax.text(10.0, len(varnames)-1, f"Final prediction: {final_contribution}",
-        #         va="center", ha="left", size=font_sizes['teensie'])
+        bar_colors = ['seagreen' if c > 0 else 'tomato' for c in contrib]
+        y_index = range(len(contrib))
+
+        # Despine
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        ax.barh(y=y_index,
+                width=contrib,
+                height=0.8,
+                alpha=0.8,
+                color=bar_colors,
+                zorder=2
+                )
+
+        ax.tick_params(axis=u'both', which=u'both', length=0)
+
+        vals = ax.get_xticks()
+        for tick in vals:
+            ax.axvline(x=tick, linestyle='dashed', alpha=0.4, color='#eeeeee', zorder=1)
+
+        ax.set_yticks(y_index)
+        ax.set_yticklabels(varnames)
+
+        for i, c in enumerate(np.round(contrib, 2)):
+            if c > 0:
+                ax.text(c + 0.25, i + .25, str(c),
+                        color='k',
+                        fontweight='bold',
+                        alpha=0.8, fontsize=8)
+            else:
+                ax.text(c - 1.75, i + .25, str(c),
+                        color='k',
+                        fontweight='bold',
+                        alpha=0.8, fontsize=8)
+
+        ax.set_xlim([np.min(contrib)-1.75, np.max(contrib)+1.75])
+
+        if key == 'hits' or key == 'false_alarms':
+            ax.text(0.685, 0.1, f'Bias : {bias:.2f}', fontsize=7,
+                    alpha=0.7, ha='center', va='center', ma='left', transform=ax.transAxes)
+            ax.text(0.75, 0.15, f'Final Pred. : {final_pred:.2f}', fontsize=7,
+                    alpha=0.7, ha='center', va='center', ma='left', transform=ax.transAxes)
+
+        if key == 'misses' or key == 'corr_negs':
+            ax.text(0.2, 0.90, f'Bias : {bias:.2f}', fontsize=7,
+                    alpha=0.7, ha='center', va='center', ma='left', transform=ax.transAxes)
+            ax.text(0.25, 0.95, f'Final Pred. : {final_pred:.2f}', fontsize=7,
+                    alpha=0.7, ha='center', va='center', ma='left', transform=ax.transAxes)
 
         # make the horizontal plot go with the highest value at the top
         ax.invert_yaxis()
 
-    def plot_treeinterpret(self, ti_dict, **kwargs):
+    def plot_treeinterpret(self, result_dict, **kwargs):
         '''
         Plot the results of tree interpret
-
         Args:
         ---------------
             result : pandas.Dataframe
@@ -343,49 +382,43 @@ class InterpretabilityPlotting:
                 result dataframe from tree_interpreter_simple
         '''
 
-        output_fname = kwargs.get('output_fname', None)
-        threshold    = kwargs.get('threshold', 1.0)
+        hspace = kwargs.get('hspace', 0.4)
+        wspace = kwargs.get('wspace', 1.0)
+        to_only_varname = kwargs.get('to_only_varname', None)
 
-        n_models   = len(ti_dict.keys())
-        n_sub_keys = len(ti_dict[list(ti_dict.keys())[0]].keys())
-
-        if (n_sub_keys > 1):
-            n_panels  = n_sub_keys
-            n_columns = 2
-        else:
-            n_panels  = n_sub_keys
-            n_columns = 1
-
-        hspace = kwargs.get('hspace', 0.5)
+        # get the number of panels which will be the number of ML models in dictionary
+        n_panels = len(result_dict.keys())
 
         # loop over each model creating one panel per model
-        for model_name in ti_dict.keys():
+        for model_name in result_dict.keys():
 
-            if output_fname is None:
-                output_fname = model_name+'_TreeInterpreter.png'
+            # try for all_data/average data
+            if 'all_data' in result_dict[model_name].keys():
 
-            # create subplots, rows represent models, cols represent inner keys
-            fig, axes = self.create_subplots(n_panels=n_panels,
-                                             n_columns=n_columns, hspace=hspace,
-                                             wspace =0.2, sharex=False,
-                                             sharey=False, figsize=(8,6))
+                fig = self._ti_plot(result_dict[model_name]['all_data'],
+                                    to_only_varname=to_only_varname)
 
-            # for each sub-axis created, plot!
-            for sub_axe, key in zip(axes.flat, ti_dict[model_name].keys()):
+            # must be performanced based
+            else:
 
-                self.ti_plot(ti_dict[model_name][key], ax=sub_axe, threshold=threshold)
-                sub_axe.set_title(key.upper().replace('_', ' '), fontsize=15)
-                sub_axe.set_xlabel("Contribution (%)")
+                # create subplots, one for each feature
+                fig, sub_axes = self.create_subplots(n_panels=4, n_columns=2,
+                                                     hspace=hspace,
+                                                     wspace=wspace,
+                                                     sharex=False,
+                                                     sharey=False, figsize=(8, 6))
 
-            # save a figure for each model
-            self.save_figure(fig, output_fname)
+                for sax, perf_key in zip(sub_axes.flat, list(result_dict[model_name].keys())):
+                    print(perf_key)
+                    self._ti_plot(result_dict[model_name][perf_key], ax=sax, key=perf_key,
+                                  to_only_varname=to_only_varname)
+                    sax.set_title(perf_key.upper().replace('_', ' '), fontsize=15)
 
         return fig
 
     def plot_variable_importance(self, importance_dict, multipass=True, ax=None, filename=None,
-                        readable_feature_names={}, feature_colors=None, metric = "Validation AUPRC",
-                             relative=False, num_vars_to_plot=None, diagnostics=0, title='', **kwargs):
-
+                                 readable_feature_names={}, feature_colors=None, metric="Validation AUPRC",
+                                 relative=False, num_vars_to_plot=None, diagnostics=0, title='', **kwargs):
         """Plots any variable importance method for a particular estimator
         :param importance_dict: Dictionary of ImportanceResult objects returned by PermutationImportance
         :param filename: string to place the file into (including directory and '.png')
@@ -402,7 +435,7 @@ class InterpretabilityPlotting:
         n_panels = len(importance_dict.keys())
 
         # create subplots, one for each feature
-        fig, axes = self.create_subplots(n_panels=n_panels, hspace=hspace, figsize=(8,6))
+        fig, axes = self.create_subplots(n_panels=n_panels, hspace=hspace, figsize=(8, 6))
 
         # loop over each model creating one panel per model
         for model_name, ax in zip(importance_dict.keys(), axes.flat):
@@ -410,7 +443,7 @@ class InterpretabilityPlotting:
             importance_obj = importance_dict[model_name]
 
             rankings = importance_obj.retrieve_multipass(
-                ) if multipass else importance_obj.retrieve_singlepass()
+            ) if multipass else importance_obj.retrieve_singlepass()
 
             if num_vars_to_plot is None and multipass:
                 num_vars_to_plot == len(list(rankings.keys()))
@@ -443,12 +476,12 @@ class InterpretabilityPlotting:
             if bootstrapped:
                 if relative:
                     scores_to_plot = np.array([original_score_mean, ] + [np.mean(score)
-                                                                     for score in scores]) / original_score_mean
+                                                                         for score in scores]) / original_score_mean
                 else:
                     scores_to_plot = np.array(
                         [original_score_mean, ] + [np.mean(score) for score in scores])
                 ci = np.array([np.abs(np.mean(score) - np.percentile(score, [2.5, 97.5]))
-                           for score in np.r_[[original_score, ], scores]]).transpose()
+                               for score in np.r_[[original_score, ], scores]]).transpose()
             else:
                 if relative:
                     scores_to_plot = np.array(
@@ -457,7 +490,7 @@ class InterpretabilityPlotting:
                     scores_to_plot = np.array(
                         [original_score_mean, ] + scores)
                 ci = np.array([[0, 0]
-                           for score in np.r_[[original_score, ], scores]]).transpose()
+                               for score in np.r_[[original_score, ], scores]]).transpose()
 
             method = "%s Permutation Importance" % (
                 "Multipass" if multipass else "Singlepass")
@@ -468,26 +501,26 @@ class InterpretabilityPlotting:
 
             if bootstrapped:
                 ax.barh(np.arange(len(scores_to_plot)),
-                     scores_to_plot, linewidth=1, edgecolor='black', color=colors_to_plot,
-                     xerr=ci, capsize=4, ecolor='grey', error_kw=dict(alpha=0.4))
+                        scores_to_plot, linewidth=1, edgecolor='black', color=colors_to_plot,
+                        xerr=ci, capsize=4, ecolor='grey', error_kw=dict(alpha=0.4))
             else:
                 ax.barh(np.arange(len(scores_to_plot)),
-                     scores_to_plot, linewidth=1, edgecolor='black', color=colors_to_plot)
+                        scores_to_plot, linewidth=1, edgecolor='black', color=colors_to_plot)
 
             # Put the variable names _into_ the plot
             for i in range(len(variable_names_to_plot)):
                 ax.text(0, i, variable_names_to_plot[i],
-                     va="center", ha="left", size=font_sizes['teensie'])
+                        va="center", ha="left", size=font_sizes['teensie'])
             if relative:
                 ax.axvline(1, linestyle=':', color='grey')
                 ax.text(1, len(variable_names_to_plot) / 2, "original score = %0.3f" % original_score_mean,
-                     va='center', ha='left', size=font_sizes['teensie'], rotation=270)
+                        va='center', ha='left', size=font_sizes['teensie'], rotation=270)
                 ax.set_xlabel("Percent of Original Score")
                 ax.set_xlim([0, 1.2])
             else:
                 ax.axvline(original_score_mean, linestyle=':', color='grey')
                 ax.text(original_score_mean, len(variable_names_to_plot) / 2, "original score",
-                     va='center', ha='left', size=font_sizes['teensie'], rotation=270)
+                        va='center', ha='left', size=font_sizes['teensie'], rotation=270)
 
             ax.set_yticks([])
             ax.set_xticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
@@ -501,8 +534,8 @@ class InterpretabilityPlotting:
         """ Saves the current figure """
         return fig.savefig(fname, bbox_inches=bbox_inches, dpi=dpi, format=aformat)
 
-
     # You can fill this in by using a dictionary with {var_name: legible_name}
+
     def convert_vars_to_readable(self, variables_list, VARIABLE_NAMES_DICT):
         """Substitutes out variable names for human-readable ones
         :param variables_list: a list of variable names
