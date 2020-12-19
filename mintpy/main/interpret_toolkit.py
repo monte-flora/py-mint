@@ -344,6 +344,7 @@ class InterpretToolkit(Attributes):
         plot_obj = PlotFeatureContributions()
         
         return plot_obj.plot_contributions(self.contributions_dict, 
+                                           self.model_names,
                                            to_only_varname=to_only_varname,
                                            display_feature_names=display_feature_names, 
                                            **kwargs)
