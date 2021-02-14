@@ -26,7 +26,7 @@ URL = "https://github.com/monte-flora/mintpy/"
 EMAIL = "monte.flora@noaa.gov"
 AUTHOR = "Montgomery Flora"
 REQUIRES_PYTHON = ">=3.6.0"
-VERSION = "0.0.0"
+VERSION = "0.0.7"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -105,7 +105,7 @@ class UploadCommand(Command):
         os.system("{0} setup.py sdist bdist_wheel --universal".format(sys.executable))
 
         self.status("Uploading the package to PyPI via Twine…")
-        os.system("twine upload dist/*")
+        os.system("twine upload --repository testpypi dist/*")
 
         self.status("Pushing git tags…")
         os.system("git tag v{0}".format(about["__version__"]))
@@ -125,7 +125,14 @@ setup(
     author_email=EMAIL,
     python_requires=REQUIRES_PYTHON,
     url=URL,
-    packages=["mintpy.common", "mintpy.main", "mintpy.plot"],
+    packages=[	
+				"mintpy",
+				"mintpy.common", 
+				"mintpy.main", 
+				"mintpy.main.PermutationImportance",	
+				"mintpy.plot", 
+				],
+	package_data = {'mintpy' : ['common/data/*', 'common/models/*']},
     install_requires=REQUIRED,
     extras_require=EXTRAS,
     setup_requires=["flake8"],
