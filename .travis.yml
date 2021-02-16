@@ -4,7 +4,7 @@ os:
 python:
 - '3.6'
 install:
-- python setup.py develop
+- python setup.py upload 
 - pip install .[test]
 - pip install matplotlib ipython codecov torch torchvision pylint sentencepiece
 script:
